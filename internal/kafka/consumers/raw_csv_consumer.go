@@ -2,34 +2,34 @@ package consumers
 
 import (
 	"context"
-	"fmt"
-	"log"
-
 	"github.com/segmentio/kafka-go"
+	"log"
 )
 
-// ConsumeMessages reads messages from a Kafka topic
-func ConsumeMessages(kafkaBroker, topic string) {
-	// Create a Kafka reader (consumer) with the provided broker and topic
+// MessageChan is a channel that will be used to send messages to the UI
+var MessageChan = make(chan string, 100) // buffered channel to prevent blocking
+
+func KafkaConsumer(ctx context.Context) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  []string{kafkaBroker},
-		Topic:    topic,
-		GroupID:  "consumer-group", // Group ID for consumer groups
-		MinBytes: 10e3,             // Minimum bytes to fetch
-		MaxBytes: 10e6,             // Maximum bytes to fetch
+		Brokers: []string{"localhost:9092"},
+		Topic:   "recommendations-topic",
+		GroupID: "csv-consumer-group",
 	})
 	defer reader.Close()
 
-	// Start consuming messages
-	for {
-		// Read a message from the topic
-		message, err := reader.ReadMessage(context.Background())
-		if err != nil {
-			log.Printf("Error while consuming message: %v", err)
-			break
-		}
+	log.Println("Started consuming from Kafka")
 
-		// Process the message
-		fmt.Printf("Consumed message: Key = %s, Value = %s\n", string(message.Key), string(message.Value))
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			msg, err := reader.ReadMessage(ctx)
+			if err != nil {
+				log.Printf("Error reading message: %v", err)
+				continue
+			}
+			MessageChan <- string(msg.Value)
+		}
 	}
 }

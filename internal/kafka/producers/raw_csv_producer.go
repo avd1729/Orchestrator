@@ -4,15 +4,15 @@ import (
 	"bufio"
 	"context"
 	"encoding/csv"
-	"fmt"
 	"log"
 	"mime/multipart"
+	"strings"
 
 	"github.com/segmentio/kafka-go"
 )
 
-// ProduceCSVToKafka reads a CSV file from a multipart.File and sends data to a Kafka topic
-func ProduceCSVToKafka(csvFile multipart.File, kafkaBroker, topic string) {
+// ProduceCSVToKafka uploads the entire CSV file content as a single key-value pair to Kafka
+func ProduceCSVToKafka(csvFile multipart.File, kafkaBroker, topic, key string) {
 	// Create a CSV reader to read from the multipart file
 	reader := csv.NewReader(bufio.NewReader(csvFile))
 
@@ -22,6 +22,15 @@ func ProduceCSVToKafka(csvFile multipart.File, kafkaBroker, topic string) {
 		log.Fatalf("Failed to read CSV file: %v", err)
 	}
 
+	// Convert all records into a single CSV string
+	var csvBuilder strings.Builder
+	for _, record := range records {
+		csvBuilder.WriteString(strings.Join(record, ","))
+		csvBuilder.WriteString("\n") // Add a newline after each row
+	}
+
+	csvContent := csvBuilder.String()
+
 	// Initialize Kafka writer
 	writer := kafka.NewWriter(kafka.WriterConfig{
 		Brokers:  []string{kafkaBroker},
@@ -30,24 +39,17 @@ func ProduceCSVToKafka(csvFile multipart.File, kafkaBroker, topic string) {
 	})
 	defer writer.Close()
 
-	// Produce CSV data to Kafka
-	for i, record := range records {
-		if len(record) == 0 {
-			log.Printf("Skipping empty record at index %d", i)
-			continue
-		}
-		message := kafka.Message{
-			Key:   []byte(record[0]), // Use the first column as the key
-			Value: []byte(fmt.Sprintf("%v", record)),
-		}
-
-		err := writer.WriteMessages(context.Background(), message)
-		if err != nil {
-			log.Printf("Failed to write message to Kafka at index %d: %v", i, err)
-		} else {
-			log.Printf("Produced message to Kafka at index %d: Key = %s, Value = %s", i, record[0], fmt.Sprintf("%v", record))
-		}
+	// Create the Kafka message with the entire CSV content
+	message := kafka.Message{
+		Key:   []byte(key), // Use the provided key
+		Value: []byte(csvContent),
 	}
 
-	log.Println("CSV data successfully published to Kafka.")
+	// Send the message to Kafka
+	err = writer.WriteMessages(context.Background(), message)
+	if err != nil {
+		log.Fatalf("Failed to write message to Kafka: %v", err)
+	}
+
+	log.Println("CSV data successfully published to Kafka")
 }

@@ -1,4 +1,4 @@
-package validators
+package handlers
 
 import (
 	"encoding/csv"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"orchestrator/internal/kafka"
 	"orchestrator/internal/utils"
 	"orchestrator/pkg/enums"
 	"orchestrator/pkg/models"
@@ -77,4 +78,15 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	// Respond with success
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("CSV file validated successfully!"))
+
+	// Reset the file pointer before passing to Kafka
+	if _, err := file.Seek(0, 0); err != nil {
+		http.Error(w, "Failed to reset file pointer", http.StatusInternalServerError)
+		return
+	}
+
+	kafkaBroker := "localhost:9092"
+	topic := "raw-csv-topic"
+	kafka.ProduceCSVToKafka(file, kafkaBroker, topic)
+
 }

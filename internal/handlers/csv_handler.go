@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"orchestrator/internal/kafka"
+	"orchestrator/internal/kafka/producers"
 	"orchestrator/internal/utils"
 	"orchestrator/pkg/enums"
 	"orchestrator/pkg/models"
@@ -87,6 +87,6 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	kafkaBroker := "localhost:9092"
 	topic := "raw-csv-topic"
-	kafka.ProduceCSVToKafka(file, kafkaBroker, topic)
+	producers.ProduceCSVToKafka(file, kafkaBroker, topic)
 
 }

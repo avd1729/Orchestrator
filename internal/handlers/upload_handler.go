@@ -141,6 +141,21 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	producers.ProduceCSVToKafka(usersFile, kafkaBroker, "users-topic", string(enums.FileType(0)))
 	producers.ProduceCSVToKafka(songsFile, kafkaBroker, "songs-topic", string(enums.FileType(1)))
 	producers.ProduceCSVToKafka(edgesFile, kafkaBroker, "edges-topic", string(enums.FileType(2)))
+
+	// Consume Kafka messages with 1 second polling interval
 	ctx := context.Background()
-	consumers.KafkaConsumer(ctx)
+	messages, err := consumers.KafkaConsumer(ctx)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error consuming Kafka messages: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Send the consumed messages as part of the HTTP response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	for _, message := range messages {
+		// Send each message back to the UI (front-end)
+		w.Write([]byte(message)) // You can format the response as needed (e.g., JSON)
+		w.Write([]byte("\n"))    // Adding newline for better separation of messages
+	}
 }

@@ -142,7 +142,7 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	producers.ProduceCSVToKafka(songsFile, kafkaBroker, "songs-topic", string(enums.FileType(1)))
 	producers.ProduceCSVToKafka(edgesFile, kafkaBroker, "edges-topic", string(enums.FileType(2)))
 
-	// Consume Kafka messages with 1 second polling interval
+	// Consume Kafka messages
 	ctx := context.Background()
 	messages, err := consumers.KafkaConsumer(ctx)
 	if err != nil {

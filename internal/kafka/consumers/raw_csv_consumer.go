@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// KafkaConsumer will listen for new messages and return them after a timeout of 1 second.
+// KafkaConsumer listens for messages and exits after 1 second of no new messages.
 func KafkaConsumer(ctx context.Context) ([]string, error) {
 	var messages []string
 	reader := kafka.NewReader(kafka.ReaderConfig{
@@ -19,29 +19,37 @@ func KafkaConsumer(ctx context.Context) ([]string, error) {
 
 	log.Println("Started consuming from Kafka")
 
+	timeoutDuration := 1 * time.Second
+	timeoutTicker := time.NewTicker(timeoutDuration) // Used to trigger timeout checks
+	defer timeoutTicker.Stop()
+
+	lastReadTime := time.Now()
+
 	// Start an infinite loop to consume messages with a timeout
 	for {
 		select {
 		case <-ctx.Done():
 			return messages, nil // Exit when context is done
+		case <-timeoutTicker.C:
+			// Check if 1 second has passed since the last message read
+			if time.Since(lastReadTime) >= timeoutDuration {
+				log.Println("No new messages for 1 second, stopping consumer.")
+				return messages, nil // Stop the consumer after 1 second of inactivity
+			}
 		default:
-			// Set a 1-second timeout for reading a message
+			// Try to read the message from Kafka
 			msg, err := reader.ReadMessage(ctx)
 			if err != nil {
-				if err.Error() == "context deadline exceeded" {
-					// No messages were received within 1 second timeout
-					log.Println("Timeout reached, no new messages.")
-					return messages, nil
-				}
 				log.Printf("Error reading message: %v", err)
 				continue
 			}
+
 			// Add message to the result list
 			messages = append(messages, string(msg.Value))
 			log.Printf("Received message: %s", string(msg.Value))
-		}
 
-		// Sleep for 1 second before trying to fetch new messages
-		time.Sleep(1 * time.Second)
+			// Reset the last read time when a message is received
+			lastReadTime = time.Now()
+		}
 	}
 }
